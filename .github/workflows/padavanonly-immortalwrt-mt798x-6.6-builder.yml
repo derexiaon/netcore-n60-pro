@@ -2,12 +2,6 @@
 # https://github.com/P3TERX/Actions-OpenWrt
 #
 # File: .github/workflows/openwrt-bulder.yml
-# Description: Build OpenWrt using GitHub Actions
-#
-# Copyright (c) 2019-2024 P3TERX <https://p3terx.com>
-#
-# This is free software, licensed under the MIT License.
-# See /LICENSE for more information.
 #
 name: padavanonly-immortalwrt-mt798x-6.6-builder
 
@@ -31,8 +25,8 @@ env:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    permissions:                  # ←←← ИСПРАВЛЕНИЕ 403
-      contents: write             # даёт право создавать релизы
+    permissions:
+      contents: write
 
     steps:
     - name: Checkout
@@ -139,7 +133,7 @@ jobs:
       uses: softprops/action-gh-release@master
       if: steps.tag.outputs.status == 'success' && !cancelled()
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}          # ← исправлено
+        token: ${{ secrets.GH_TOKEN }}          # ← используем твой PAT
         tag_name: ${{ steps.tag.outputs.release_tag }}
         body_path: release.txt
         files: ${{ env.FIRMWARE }}/*
@@ -157,4 +151,4 @@ jobs:
         keep_latest: 6
         delete_tags: true
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}   # ← тоже используем твой PAT
