@@ -1,10 +1,11 @@
+name: Build Full Chasey-Dev for N60 Pro (128MB, RU)
 
 on:
   workflow_dispatch:
 
 env:
   REPO_URL: https://github.com/chasey-dev/immortalwrt-mt798x-rebase
-  REPO_BRANCH: 25.12
+  REPO_BRANCH: master
   DEFCONFIG_URL: https://raw.githubusercontent.com/chasey-dev/immortalwrt-mt798x-rebase/master/defconfig/mt7986-ax6000.config
   TZ: Europe/Moscow
 
@@ -40,7 +41,7 @@ jobs:
         cd openwrt
         DTS_PATH=$(find target/linux/mediatek/ -name "*netcore-n60-pro.dts")
         if [ -n "$DTS_PATH" ]; then
-          # Защита от циклической перезагрузки: возвращаем разметку под 128МБ
+          # Защита от циклической перезагрузки: возвращаем разметку под стоковую флешку 128МБ
           sed -i 's/0x1fc80000/0x7c80000/g' $DTS_PATH
           echo "DTS patched for 128MB ROM in $DTS_PATH"
         fi
@@ -48,22 +49,25 @@ jobs:
     - name: Apply Original Defconfig & Optimize
       run: |
         cd openwrt
-        # Скачиваем оригинальный файл со всеми пакетами
+        # Скачиваем оригинальный файл со всеми полезными пакетами
         wget $DEFCONFIG_URL -O .config
         
-        # 1. Отключаем мульти-профиль (экономим часы компиляции)
+        # 1. ЖЕСТКО УДАЛЯЕМ все целевые устройства из авторского конфига, чтобы избежать конфликтов
+        sed -i '/CONFIG_TARGET_DEVICE_/d' .config
+        
+        # 2. Отключаем мульти-профиль (иначе сборка пойдет по всем платам сразу)
         sed -i 's/CONFIG_TARGET_MULTI_PROFILE=y/# CONFIG_TARGET_MULTI_PROFILE is not set/' .config
         
-        # 2. Оставляем сборку только для N60 Pro
+        # 3. Добавляем ТОЛЬКО роутер N60 Pro
         echo "CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_netcore_n60-pro=y" >> .config
         
-        # 3. Меняем всю китайскую локализацию на русскую
+        # 4. Меняем всю китайскую локализацию плагинов на русскую
         sed -i 's/-zh-cn/-ru/g' .config
         
-        # 4. Добавляем базовый пакет русского языка для самого интерфейса LuCI
+        # 5. Добавляем пакет русского языка для самого интерфейса LuCI
         echo "CONFIG_PACKAGE_luci-i18n-base-ru=y" >> .config
         
-        # Разрешаем зависимости
+        # Проверяем и разрешаем зависимости
         make defconfig
 
     - name: Download Dependencies
