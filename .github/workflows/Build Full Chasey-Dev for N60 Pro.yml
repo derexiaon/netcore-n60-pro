@@ -4,7 +4,7 @@ on:
 
 env:
   REPO_URL: https://github.com/chasey-dev/immortalwrt-mt798x-rebase
-  REPO_BRANCH: master
+  REPO_BRANCH: 25.12
   DEFCONFIG_URL: https://raw.githubusercontent.com/chasey-dev/immortalwrt-mt798x-rebase/master/defconfig/mt7986-ax6000.config
   TZ: Europe/Moscow
 
