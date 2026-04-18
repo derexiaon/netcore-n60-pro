@@ -18,3 +18,17 @@
 
 # Modify hostname
 sed -i 's/ImmortalWrt/Netis-NX62/g' package/base-files/files/bin/config_generate
+
+# =============================================
+# Фикс ошибки conninfra на ImmortalWrt 25.12
+# =============================================
+echo "=== Принудительно отключаем conninfra ==="
+
+# Удаляем все упоминания conninfra из конфига
+sed -i '/CONFIG_PACKAGE_kmod-conninfra/d' .config
+echo "# CONFIG_PACKAGE_kmod-conninfra is not set" >> .config
+
+# Пересобираем конфиг чисто
+make defconfig
+
+echo "conninfra disabled successfully"
