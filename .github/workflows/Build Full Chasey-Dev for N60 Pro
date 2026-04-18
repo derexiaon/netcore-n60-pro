@@ -1,0 +1,83 @@
+
+on:
+  workflow_dispatch:
+
+env:
+  REPO_URL: https://github.com/chasey-dev/immortalwrt-mt798x-rebase
+  REPO_BRANCH: master
+  DEFCONFIG_URL: https://raw.githubusercontent.com/chasey-dev/immortalwrt-mt798x-rebase/master/defconfig/mt7986-ax6000.config
+  TZ: Europe/Moscow
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@main
+
+    - name: Prepare Environment
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
+        sudo -E apt-get -qq update
+        sudo -E apt-get -qq install build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev python3-distutils rsync unzip zlib1g-dev file wget
+        sudo timedatectl set-timezone "$TZ"
+
+    - name: Clone Source Code
+      run: |
+        git clone --depth 1 $REPO_URL -b $REPO_BRANCH openwrt
+
+    - name: Update & Install Feeds
+      run: |
+        cd openwrt
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    - name: Patch DTS for 128MB ROM
+      run: |
+        cd openwrt
+        DTS_PATH=$(find target/linux/mediatek/ -name "*netcore-n60-pro.dts")
+        if [ -n "$DTS_PATH" ]; then
+          # Защита от циклической перезагрузки: возвращаем разметку под 128МБ
+          sed -i 's/0x1fc80000/0x7c80000/g' $DTS_PATH
+          echo "DTS patched for 128MB ROM in $DTS_PATH"
+        fi
+
+    - name: Apply Original Defconfig & Optimize
+      run: |
+        cd openwrt
+        # Скачиваем оригинальный файл со всеми пакетами
+        wget $DEFCONFIG_URL -O .config
+        
+        # 1. Отключаем мульти-профиль (экономим часы компиляции)
+        sed -i 's/CONFIG_TARGET_MULTI_PROFILE=y/# CONFIG_TARGET_MULTI_PROFILE is not set/' .config
+        
+        # 2. Оставляем сборку только для N60 Pro
+        echo "CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_netcore_n60-pro=y" >> .config
+        
+        # 3. Меняем всю китайскую локализацию на русскую
+        sed -i 's/-zh-cn/-ru/g' .config
+        
+        # 4. Добавляем базовый пакет русского языка для самого интерфейса LuCI
+        echo "CONFIG_PACKAGE_luci-i18n-base-ru=y" >> .config
+        
+        # Разрешаем зависимости
+        make defconfig
+
+    - name: Download Dependencies
+      run: |
+        cd openwrt
+        make download -j8
+
+    - name: Compile Firmware
+      run: |
+        cd openwrt
+        make -j$(nproc) || make -j1 V=s
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@main
+      with:
+        name: Netcore_N60_Pro_Full_RU_128MB
+        path: openwrt/bin/targets/mediatek/filogic/*.bin
