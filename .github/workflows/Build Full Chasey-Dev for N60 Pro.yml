@@ -41,7 +41,7 @@ jobs:
         cd openwrt
         DTS_PATH=$(find target/linux/mediatek/ -name "*netcore-n60-pro.dts")
         if [ -n "$DTS_PATH" ]; then
-          # Защита от циклической перезагрузки: возвращаем разметку под стоковую флешку 128МБ
+          # Возвращаем разметку под стоковую флешку 128МБ
           sed -i 's/0x1fc80000/0x7c80000/g' $DTS_PATH
           echo "DTS patched for 128MB ROM in $DTS_PATH"
         fi
@@ -49,25 +49,33 @@ jobs:
     - name: Apply Original Defconfig & Optimize
       run: |
         cd openwrt
-        # Скачиваем оригинальный файл со всеми полезными пакетами
         wget $DEFCONFIG_URL -O .config
         
-        # 1. ЖЕСТКО УДАЛЯЕМ все целевые устройства из авторского конфига, чтобы избежать конфликтов
+        # 1. АВТОМАТИЧЕСКИ ищем точное имя таргета Netcore в конфиге автора
+        N60_TARGET=$(grep -iE "^CONFIG_TARGET_DEVICE_.*netcore.*=y" .config | head -n 1)
+        
+        # Если в конфиге его нет, парсим исходники Makefiles напрямую
+        if [ -z "$N60_TARGET" ]; then
+          DEV_NAME=$(grep -hoE "Device/[a-zA-Z0-9_-]+" target/linux/mediatek/image/*.mk | grep -i "netcore" | cut -d'/' -f2 | head -n 1)
+          N60_TARGET="CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_${DEV_NAME}=y"
+        fi
+        
+        echo "Will build using target: $N60_TARGET"
+        
+        # 2. ЖЕСТКО УДАЛЯЕМ все целевые устройства из авторского конфига
         sed -i '/CONFIG_TARGET_DEVICE_/d' .config
         
-        # 2. Отключаем мульти-профиль (иначе сборка пойдет по всем платам сразу)
+        # 3. Отключаем мульти-профиль
         sed -i 's/CONFIG_TARGET_MULTI_PROFILE=y/# CONFIG_TARGET_MULTI_PROFILE is not set/' .config
         
-        # 3. Добавляем ТОЛЬКО роутер N60 Pro
-        echo "CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_netcore_n60-pro=y" >> .config
+        # 4. Вписываем найденный таргет именно для вашего роутера
+        echo "$N60_TARGET" >> .config
         
-        # 4. Меняем всю китайскую локализацию плагинов на русскую
+        # 5. Меняем всю китайскую локализацию плагинов на русскую
         sed -i 's/-zh-cn/-ru/g' .config
-        
-        # 5. Добавляем пакет русского языка для самого интерфейса LuCI
         echo "CONFIG_PACKAGE_luci-i18n-base-ru=y" >> .config
         
-        # Проверяем и разрешаем зависимости
+        # Разрешаем зависимости
         make defconfig
 
     - name: Download Dependencies
